@@ -78,4 +78,4 @@ mlflow server --host 10.5.1.218:7777
 After launching the server applications, the dashboard of the prefect will be available.
 Please open 10.5.1.218:4200 in your webbrowser.
 
-
+![screenshot](dashboard.png)
