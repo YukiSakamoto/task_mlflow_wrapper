@@ -42,6 +42,8 @@ def str_and(s1,s2):
 
 @flow()
 def my_test(a = "hello", b = "byebye"):
+    task_mlflow_wrapper.set_mlflow_server_uri("127.0.0.1")
+    task_mlflow_wrapper.set_mlflow_server_port("8888")
     a = str_twice(a)
     aa = str_twice(a)
     bb = str_twice(b)

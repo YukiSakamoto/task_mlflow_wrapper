@@ -14,15 +14,35 @@ class CustomEncoder(json.JSONEncoder):
             return str(obj)
         return super().default(obj)
 
-def task_with_mlflow(mlflow_server_uri = "10.5.1.218:7777", artifact_dir = None, 
+_mlflow_server_uri = "127.0.0.1"
+_mlflow_server_port = "7777"
+
+def set_mlflow_server_uri(server_uri):
+    global _mlflow_server_uri
+    _mlflow_server_uri = server_uri
+
+def set_mlflow_server_port(server_port):
+    global _mlflow_server_port
+    _mlflow_server_port = server_port
+
+def get_mlflow_server_uri():
+    return _mlflow_server_uri
+
+def get_mlflow_server_port():
+    return _mlflow_server_port
+
+def _mlflow_endpoint():
+    return "{}:{}".format(_mlflow_server_uri, _mlflow_server_port)
+
+def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None, 
         arg_name_artifact_dir_before_exec = None, arg_name_artifact_dir_after_exec = None):
-    def prefect_task_wrapper(mlflow_server_uri, exp_id, run_id):
+    def prefect_task_wrapper(mlflow_server_endpoint, exp_id, run_id):
         def prefect_task_wrapper2(f):
             # This wrapper function is for the logging of the mlflow url.
             @task
             @functools.wraps(f)
             def wrapper(*args, **kwargs):
-                experiment_url = f"http://{mlflow_server_uri}/#/experiments/{exp_id}/runs/{run_id}"
+                experiment_url = f"http://{mlflow_server_endpoint}/#/experiments/{exp_id}/runs/{run_id}"
                 description = "{} exp_id: {} run_id: {}".format(f.__name__, exp_id, run_id)
                 create_link_artifact(key = "mlflow", link = experiment_url, description = description)
                 ret = f(*args, **kwargs) 
@@ -70,14 +90,14 @@ def task_with_mlflow(mlflow_server_uri = "10.5.1.218:7777", artifact_dir = None,
                 #----------------------------------------
                 # Execution
                 #----------------------------------------
-                decorate_func = prefect_task_wrapper(mlflow_server_uri = mlflow_server_uri, exp_id = experiment_id, run_id = run_id)(f)
+                decorate_func = prefect_task_wrapper(mlflow_server_endpoint = _mlflow_endpoint(), exp_id = experiment_id, run_id = run_id)(f)
                 ret_value = decorate_func(*args, **kwargs)
                 #----------------------------------------
                 # Prefect: Save the log 
                 #----------------------------------------
-                experiment_url = f"http://{mlflow_server_uri}/#/experiments/{experiment_id}/runs/{run_id}"
+                experiment_url = f"http://{_mlflow_endpoint()}/#/experiments/{experiment_id}/runs/{run_id}"
                 logger = get_run_logger()
-                logger.info(f"{function_name}: {experiment_url}")
+                logger.info(f"{function_name}: {_mlflow_endpoint()}")
                 #----------------------------------------
                 # MLFlow: save all artifact
                 #----------------------------------------
