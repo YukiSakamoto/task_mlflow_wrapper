@@ -1,6 +1,6 @@
 import prefect
 from prefect import task, flow, get_run_logger
-from prefect.artifacts import create_link_artifact
+from prefect.artifacts import create_link_artifact, create_table_artifact
 import mlflow
 import datetime
 import functools
@@ -49,6 +49,8 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                 experiment_url = f"http://{mlflow_server_endpoint}/#/experiments/{exp_id}/runs/{run_id}"
                 description = "{} exp_id: {} run_id: {}".format(f.__name__, exp_id, run_id)
                 create_link_artifact(key = "mlflow", link = experiment_url, description = description)
+                run_information = [{"mlflow_server_endpoint": _mlflow_endpoint(), "run_id": run_id, "exp_id": exp_id}] 
+                create_table_artifact(key = "runinfo", table = run_information)
                 ret = f(*args, **kwargs) 
                 return ret
             return wrapper
