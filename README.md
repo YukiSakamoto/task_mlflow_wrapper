@@ -28,7 +28,9 @@ from task_mlflow_wrapper import task_with_mlflow
 def str_twice(s):
     return s*2
 
-@task_with_mlflow()
+# if pathobj_log_artifacts is set to True, 
+#  it will scan all the passed arguments and store the Path object as artifacts.
+@task_with_mlflow(pathobj_log_artifacts = True)
 def str_triple(s):
     return s*3
 
