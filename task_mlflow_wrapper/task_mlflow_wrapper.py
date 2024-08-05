@@ -38,7 +38,8 @@ def _mlflow_endpoint():
     return "{}:{}".format(_mlflow_server_uri, _mlflow_server_port)
 
 def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None, 
-        arg_name_artifact_dir_before_exec = None, arg_name_artifact_dir_after_exec = None):
+        arg_name_artifact_dir_before_exec = None, arg_name_artifact_dir_after_exec = None,
+        pathobj_log_artifacts = False):
     def prefect_task_wrapper(mlflow_server_endpoint, exp_id, run_id):
         def prefect_task_wrapper2(f):
             # This wrapper function is for the logging of the mlflow url.
@@ -54,6 +55,18 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
         return prefect_task_wrapper2
 
     def task_with_mlflow_wrapper(f):
+        def _helper_pathobj_log_artifacts(arg_dict: dict, artifact_uri_base: str):
+            # This function save Path, or list of Path object as artifacts.
+            for k, v in arg_dict.items():
+                if isinstance(v, Path):
+                    mlflow.log_artifacts(v, "{}/{}".format(artifact_uri_base, k))
+                elif isinstance(v, list) or isinstance(v, set):
+                    for index, v_i in enumerate(v):
+                        if isinstance(v_i, Path):
+                            mlflow.log_artifacts(v_i, "{}/{}/{}".format(artifact_uri_base, k, index))
+                else:
+                    pass
+
         @functools.wraps(f)
         def _wrapper(*args, **kwargs):
             #----------------------------------------
@@ -114,6 +127,10 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                             else:
                                 mlflow.log_artifacts(str(artifact_dir), artifact_path = "artifacts_after_exec")
 
+                if pathobj_log_artifacts == True:
+                    artifact_uri_base = "pathobj_artifacts"
+                    _helper_pathobj_log_artifacts(bound_args.arguments, artifact_uri_base)
+
                 #----------------------------------------
                 # MLFlow: save inputs parameter and return value
                 #----------------------------------------
@@ -127,6 +144,7 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                     mlflow.log_metric(function_name, ret_value)
             return ret_value 
         return _wrapper
+
     return task_with_mlflow_wrapper
 
 #@task_with_mlflow(arg_name_artifact_dir_before_exec = "artifact_dir", arg_name_artifact_dir_after_exec = "artifact_dir")
