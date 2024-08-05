@@ -14,6 +14,9 @@ class CustomEncoder(json.JSONEncoder):
             return str(obj)
         return super().default(obj)
 
+#========================================
+#   Settings of the mlflow server URL
+#========================================
 _mlflow_server_uri = "127.0.0.1"
 _mlflow_server_port = "7777"
 
