@@ -6,6 +6,7 @@ import datetime
 import functools
 import inspect
 import json
+import sys
 from pathlib import PosixPath, Path
 
 class CustomEncoder(json.JSONEncoder):
@@ -39,6 +40,7 @@ def _mlflow_endpoint():
 
 def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None, 
         arg_name_artifact_dir_before_exec = None, arg_name_artifact_dir_after_exec = None,
+        dirname_of_artifacts_before_exec = "artifacts_before_exec", dirname_of_artifacts_after_exec = "artifact_after_exec",
         pathobj_log_artifacts = False):
     def prefect_task_wrapper(mlflow_server_endpoint, exp_id, run_id):
         def prefect_task_wrapper2(f):
@@ -57,9 +59,11 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
         return prefect_task_wrapper2
 
     def task_with_mlflow_wrapper(f):
-        def _helper_pathobj_log_artifacts(arg_dict: dict, artifact_uri_base: str):
+        def _helper_pathobj_log_artifacts(arg_dict: dict, artifact_uri_base: str, except_dir_list: list = []):
             # This function save Path, or list of Path object as artifacts.
             for k, v in arg_dict.items():
+                if k in except_dir_list:
+                    continue
                 if isinstance(v, Path):
                     mlflow.log_artifacts(v, "{}/{}".format(artifact_uri_base, k))
                 elif isinstance(v, list) or isinstance(v, set):
@@ -83,6 +87,7 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
             # Set up MLFlow
             #----------------------------------------
             mlflow.set_experiment(function_name)
+            ret_value = None
             with mlflow.start_run() as run:
                 run_id = run.info.run_id
                 experiment_id = run.info.experiment_id
@@ -93,7 +98,7 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                     mlflow.log_param(name, value)
 
                 #----------------------------------------
-                # MLFlow: Save the Artifacts before exec. 
+                # MLFlow: Save the Artifacts BEFORE exec. 
                 #----------------------------------------
                 if arg_name_artifact_dir_before_exec != None:
                     if arg_name_artifact_dir_before_exec in bound_args.arguments:
@@ -101,15 +106,16 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                         if artifact_dir != None:
                             if isinstance(artifact_dir, list) or isinstance(artifact_dir, set):
                                 for index, d in enumerate(artifact_dir):
-                                    mlflow.log_artifacts(str(d), artifact_path = "artifacts_before_exec/{}".format(index))
+                                    mlflow.log_artifacts(str(d), artifact_path = "{}/{}".format(dirname_of_artifacts_before_exec, index))
                             else:
-                                mlflow.log_artifacts(str(artifact_dir), artifact_path = "artifacts_before_exec")
+                                mlflow.log_artifacts(str(artifact_dir), artifact_path = dirname_of_artifacts_before_exec)
 
                 #----------------------------------------
                 # Execution
                 #----------------------------------------
                 decorate_func = prefect_task_wrapper(mlflow_server_endpoint = _mlflow_endpoint(), exp_id = experiment_id, run_id = run_id)(f)
                 ret_value = decorate_func(*args, **kwargs)
+                print("** function done", function_name)
                 #----------------------------------------
                 # Prefect: Save the log 
                 #----------------------------------------
@@ -117,22 +123,26 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                 logger = get_run_logger()
                 logger.info(f"{function_name}: {_mlflow_endpoint()}")
                 #----------------------------------------
-                # MLFlow: save all artifact
+                # MLFlow: save all artifact AFTER execution
                 #----------------------------------------
+                saved = []
                 if arg_name_artifact_dir_after_exec != None:
                     if arg_name_artifact_dir_after_exec in bound_args.arguments:
                         artifact_dir = bound_args.arguments[arg_name_artifact_dir_after_exec]
                         if artifact_dir != None:
                             if isinstance(artifact_dir, list) or isinstance(artifact_dir, set):
                                 for index, d in enumerate(artifact_dir):
-                                    mlflow.log_artifacts(str(artifact_dir), artifact_path = "artifacts_after_exec/{}".format(index))
+                                    mlflow.log_artifacts(str(artifact_dir), artifact_path = "{}/{}".format(dirname_of_artifacts_after_exec, index))
                             else:
-                                mlflow.log_artifacts(str(artifact_dir), artifact_path = "artifacts_after_exec")
+                                mlflow.log_artifacts(str(artifact_dir), artifact_path = dirname_of_artifacts_after_exec)
+                            saved.append(artifact_dir)
+                print("** save artifact 1 done ", function_name, file=sys.stderr)
 
                 if pathobj_log_artifacts == True:
-                    artifact_uri_base = "pathobj_artifacts"
-                    _helper_pathobj_log_artifacts(bound_args.arguments, artifact_uri_base)
-
+                    #artifact_uri_base = "pathobj_artifacts"
+                    artifact_uri_base = dirname_of_artifacts_after_exec
+                    _helper_pathobj_log_artifacts(bound_args.arguments, artifact_uri_base, saved)
+                print("** save artifact 2 done ", function_name, file=sys.stderr)
                 #----------------------------------------
                 # MLFlow: save inputs parameter and return value
                 #----------------------------------------
@@ -140,10 +150,14 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                 task_desc["inputs"] = bound_args.arguments
                 task_desc["output"] = ret_value
                 json_obj = json.dumps(task_desc, cls=CustomEncoder)
-                mlflow.log_dict(json.loads(json_obj), "log.json")
-                
+                #mlflow.log_dict(json.loads(json_obj), "log.json")
+                print("** log dict done", function_name, file=sys.stderr)
                 if isinstance(ret_value, float):
                     mlflow.log_metric(function_name, ret_value)
+                    #pass
+                print("** log json done", function_name, file=sys.stderr)
+
+            print("done", function_name)
             return ret_value 
         return _wrapper
 
