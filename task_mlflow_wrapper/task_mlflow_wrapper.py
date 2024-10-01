@@ -86,6 +86,7 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
             #----------------------------------------
             # Set up MLFlow
             #----------------------------------------
+            #mlflow.set_tracking_uri(get_mlflow_server_uri())
             mlflow.set_experiment(function_name)
             ret_value = None
             with mlflow.start_run() as run:
@@ -115,7 +116,6 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                 #----------------------------------------
                 decorate_func = prefect_task_wrapper(mlflow_server_endpoint = _mlflow_endpoint(), exp_id = experiment_id, run_id = run_id)(f)
                 ret_value = decorate_func(*args, **kwargs)
-                print("** function done", function_name)
                 #----------------------------------------
                 # Prefect: Save the log 
                 #----------------------------------------
@@ -136,13 +136,11 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                             else:
                                 mlflow.log_artifacts(str(artifact_dir), artifact_path = dirname_of_artifacts_after_exec)
                             saved.append(artifact_dir)
-                print("** save artifact 1 done ", function_name, file=sys.stderr)
 
                 if pathobj_log_artifacts == True:
                     #artifact_uri_base = "pathobj_artifacts"
                     artifact_uri_base = dirname_of_artifacts_after_exec
                     _helper_pathobj_log_artifacts(bound_args.arguments, artifact_uri_base, saved)
-                print("** save artifact 2 done ", function_name, file=sys.stderr)
                 #----------------------------------------
                 # MLFlow: save inputs parameter and return value
                 #----------------------------------------
@@ -151,13 +149,11 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                 task_desc["output"] = ret_value
                 json_obj = json.dumps(task_desc, cls=CustomEncoder)
                 #mlflow.log_dict(json.loads(json_obj), "log.json")
-                print("** log dict done", function_name, file=sys.stderr)
                 if isinstance(ret_value, float):
                     mlflow.log_metric(function_name, ret_value)
                     #pass
-                print("** log json done", function_name, file=sys.stderr)
+                #mlflow.end_run()
 
-            print("done", function_name)
             return ret_value 
         return _wrapper
 
