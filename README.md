@@ -82,4 +82,6 @@ mlflow server --host 10.5.1.218:7777
 After launching the server applications, the dashboard of the prefect will be available.
 Please open 10.5.1.218:4200 in your webbrowser.
 
+If the program using this library fail due to `sqlalchemy`, please try `pip install alembic --update` and run again.
+
 ![screenshot](dashboard.png)
