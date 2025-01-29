@@ -18,25 +18,14 @@ class CustomEncoder(json.JSONEncoder):
 #========================================
 #   Settings of the mlflow server URL
 #========================================
-_mlflow_server_uri = "127.0.0.1"
-_mlflow_server_port = "7777"
+_tracking_uri = "http://0.0.0.0:7777/"
+def set_tracking_uri(uri):
+    global _tracking_uri
+    _tracking_uri = uri
 
-def set_mlflow_server_uri(server_uri):
-    global _mlflow_server_uri
-    _mlflow_server_uri = server_uri
+def get_tracking_uri():
+    return _tracking_uri
 
-def set_mlflow_server_port(server_port):
-    global _mlflow_server_port
-    _mlflow_server_port = server_port
-
-def get_mlflow_server_uri():
-    return _mlflow_server_uri
-
-def get_mlflow_server_port():
-    return _mlflow_server_port
-
-def _mlflow_endpoint():
-    return "{}:{}".format(_mlflow_server_uri, _mlflow_server_port)
 
 def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None, 
         arg_name_artifact_dir_before_exec = None, arg_name_artifact_dir_after_exec = None,
@@ -48,10 +37,10 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
             @task
             @functools.wraps(f)
             def wrapper(*args, **kwargs):
-                experiment_url = f"http://{mlflow_server_endpoint}/#/experiments/{exp_id}/runs/{run_id}"
+                experiment_url = f"{mlflow_server_endpoint}/#/experiments/{exp_id}/runs/{run_id}"
                 description = "{} exp_id: {} run_id: {}".format(f.__name__, exp_id, run_id)
                 create_link_artifact(key = "mlflow", link = experiment_url, description = description)
-                run_information = [{"mlflow_server_endpoint": _mlflow_endpoint(), "run_id": run_id, "exp_id": exp_id}] 
+                run_information = [{"mlflow_server_endpoint": experiment_url, "run_id": run_id, "exp_id": exp_id}] 
                 create_table_artifact(key = "runinfo", table = run_information)
                 ret = f(*args, **kwargs) 
                 return ret
@@ -86,7 +75,6 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
             #----------------------------------------
             # Set up MLFlow
             #----------------------------------------
-            #mlflow.set_tracking_uri(get_mlflow_server_uri())
             mlflow.set_experiment(function_name)
             ret_value = None
             with mlflow.start_run() as run:
@@ -114,14 +102,15 @@ def task_with_mlflow(mlflow_server_uri = None, artifact_dir = None,
                 #----------------------------------------
                 # Execution
                 #----------------------------------------
-                decorate_func = prefect_task_wrapper(mlflow_server_endpoint = _mlflow_endpoint(), exp_id = experiment_id, run_id = run_id)(f)
+                decorate_func = prefect_task_wrapper(mlflow_server_endpoint = get_tracking_uri(), exp_id = experiment_id, run_id = run_id)(f)
                 ret_value = decorate_func(*args, **kwargs)
                 #----------------------------------------
                 # Prefect: Save the log 
                 #----------------------------------------
-                experiment_url = f"http://{_mlflow_endpoint()}/#/experiments/{experiment_id}/runs/{run_id}"
+                tracking_uri = get_tracking_uri()
+                experiment_url = f"{tracking_uri}/#/experiments/{experiment_id}/runs/{run_id}"
                 logger = get_run_logger()
-                logger.info(f"{function_name}: {_mlflow_endpoint()}")
+                logger.info(f"{function_name}: {experiment_url}")
                 #----------------------------------------
                 # MLFlow: save all artifact AFTER execution
                 #----------------------------------------
